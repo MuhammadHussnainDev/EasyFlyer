@@ -1,15 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, Image, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-
-const formatDate = (dateString) => {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date);
-};
+import { formatDate } from './dateUtils';
 
 const FlyerItem = ({ item, navigation, toggleFavorite, isFavorite }) => {
   const navigateToFlyerScreen = () => {

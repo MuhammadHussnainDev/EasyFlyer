@@ -6,10 +6,42 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useToast } from 'react-native-toast-notifications';
+import { signInSchema, SignInFormData } from '../../../utils/validationSchemas';
 
 const SignInScreen = ({ navigation }: any) => {
+  const toast = useToast();
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SignInFormData>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  const onSubmit = async (_data: SignInFormData) => {
+    try {
+      // TODO: Connect to authentication backend (email/password sign-in)
+      navigation.navigate('home');
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'An error occurred. Please try again.';
+      toast.show(message, {
+        type: 'danger',
+        placement: 'top',
+        duration: 3000,
+        animationType: 'slide-in',
+      });
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       {/* Logo Icon */}
@@ -24,29 +56,62 @@ const SignInScreen = ({ navigation }: any) => {
       <Text style={styles.title}>EasyFlyer</Text>
       <Text style={styles.subtitle}>Your Local Deals Companion</Text>
 
-      {/* Input Fields */}
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#999"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoCorrect={false}
+      {/* Email Field */}
+      <Controller
+        control={control}
+        name="email"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <TextInput
+            style={[styles.input, errors.email && styles.inputError]}
+            placeholder="Email"
+            placeholderTextColor="#999"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            editable={!isSubmitting}
+          />
+        )}
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#999"
-        secureTextEntry
-        autoCapitalize="none"
-        autoCorrect={false}
+      {errors.email && (
+        <Text style={styles.errorText}>{errors.email.message}</Text>
+      )}
+
+      {/* Password Field */}
+      <Controller
+        control={control}
+        name="password"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <TextInput
+            style={[styles.input, errors.password && styles.inputError]}
+            placeholder="Password"
+            placeholderTextColor="#999"
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            editable={!isSubmitting}
+          />
+        )}
       />
+      {errors.password && (
+        <Text style={styles.errorText}>{errors.password.message}</Text>
+      )}
 
       {/* Login Button */}
       <TouchableOpacity
-        onPress={() => navigation.navigate('home')}
-        style={styles.loginButton}>
-        <Text style={styles.loginButtonText}>LOGIN</Text>
+        onPress={handleSubmit(onSubmit)}
+        style={[styles.loginButton, isSubmitting && styles.disabledButton]}
+        disabled={isSubmitting}>
+        {isSubmitting ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={styles.loginButtonText}>LOGIN</Text>
+        )}
       </TouchableOpacity>
 
       {/* Legal Links */}
@@ -118,9 +183,19 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingHorizontal: 20,
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 4,
     backgroundColor: '#F8F9FA',
     color: '#333',
+  },
+  inputError: {
+    borderColor: '#e53e3e',
+  },
+  errorText: {
+    width: '100%',
+    fontSize: 13,
+    color: '#e53e3e',
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   loginButton: {
     width: '100%',
@@ -141,6 +216,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  disabledButton: {
+    backgroundColor: '#A0AEC0',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   legalLinks: {
     flexDirection: 'row',

@@ -5,7 +5,7 @@ import {
   CouponGift,
   fetchAllCouponGifts,
 } from '../../actions/coupon-gifts/fetch-coupon';
-import { formatDate } from './store-flyers';
+import { formatDate } from '../../utils/dateUtils';
 import { filterExpiredContent } from '../../utils/dateUtils';
 
 export const GiftCardsComponent = () => {

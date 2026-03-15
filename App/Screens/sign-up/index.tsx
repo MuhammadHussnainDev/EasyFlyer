@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext } from 'react';
 import {
   View,
   Text,
@@ -9,114 +9,38 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from 'react-native-toast-notifications';
-import { saveUserData } from '../../../lib/storageUtils'; // Import the utility function
+import { saveUserData } from '../../../lib/storageUtils';
 import { AuthContext } from '../../../lib/AuthContext';
 import { createPostalCodeUser } from '../../../actions/postal-code/create-code';
+import { postalCodeSchema, PostalCodeFormData } from '../../../utils/validationSchemas';
 
 const SignupScreen = ({ navigation }: any) => {
-  const [postalCode, setPostalCode] = useState('');
-  const [loading, setLoading] = useState(false);
   const toast = useToast();
-  const { setIsLoggedIn, updateUserData } = useContext(AuthContext); // Access the setIsLoggedIn function
+  const { setIsLoggedIn, updateUserData } = useContext(AuthContext);
 
-  // const handleSignup = async () => {
-  //   if (!postalCode.trim()) {
-  //     toast.show('Postal Code is required!', {
-  //       type: 'danger',
-  //       placement: 'top',
-  //       duration: 3000,
-  //       animationType: 'slide-in',
-  //     });
-  //     return;
-  //   }
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<PostalCodeFormData>({
+    resolver: zodResolver(postalCodeSchema),
+    defaultValues: { postalCode: '' },
+  });
 
-  //   try {
-  //     setLoading(true);
-
-  //     // Call createPostalCodeUser server action
-  //     const result = await createPostalCodeUser(postalCode);
-
-  //     if (result.success) {
-  //       const userData = {postalCode, userId: result.userId}; // Save postalCode and userId
-  //       await saveUserData('userData', userData);
-
-  //       // Update AuthContext with the new user data
-  //       updateUserData(userData);
-
-  //       toast.show('User registered successfully!', {
-  //         type: 'success',
-  //         placement: 'top',
-  //         duration: 3000,
-  //         animationType: 'slide-in',
-  //       });
-
-  //       // Update the global login state
-  //       setIsLoggedIn(true);
-  //     } else {
-  //       toast.show(result.message || 'Registration failed. Please try again.', {
-  //         type: 'danger',
-  //         placement: 'top',
-  //         duration: 3000,
-  //         animationType: 'slide-in',
-  //       });
-  //     }
-  //   } catch (error) {
-  //     toast.show('An error occurred. Please try again.', {
-  //       type: 'danger',
-  //       placement: 'top',
-  //       duration: 3000,
-  //       animationType: 'slide-in',
-  //     });
-  //     console.error('Error during registration:', error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
-  const validatePostalCode = (code: string): boolean => {
-    const postalCodeRegex = /^[A-Za-z0-9]{6}$/;
-    return postalCodeRegex.test(code);
-  };
-
-  const handleSignup = async () => {
-    if (!postalCode.trim()) {
-      toast.show('Postal Code is required!', {
-        type: 'danger',
-        placement: 'top',
-        duration: 3000,
-        animationType: 'slide-in',
-      });
-      return;
-    }
-
-    if (!validatePostalCode(postalCode.trim())) {
-      toast.show('Postal Code must be exactly 6 alphanumeric characters!', {
-        type: 'danger',
-        placement: 'top',
-        duration: 3000,
-        animationType: 'slide-in',
-      });
-      return;
-    }
-
+  const onSubmit = async (data: PostalCodeFormData) => {
     try {
-      setLoading(true);
-
-      // Call createPostalCodeUser server action
-      const result = await createPostalCodeUser(postalCode);
+      const result = await createPostalCodeUser(data.postalCode);
 
       if (result.success && result.userId) {
         const { userId, postalCode: userPostalCode, fcmToken } = result;
-        const userData = { userId, postalCode: userPostalCode, fcmToken }; // Save postalCode, userId, and FCM token
+        const userData = { userId, postalCode: userPostalCode, fcmToken };
 
-        // Save user data locally
         await saveUserData('userData', userData);
-
-        // Update AuthContext with the new user data
         updateUserData(userData);
 
-        // Show success message
         toast.show('User registered successfully!', {
           type: 'success',
           placement: 'top',
@@ -124,24 +48,20 @@ const SignupScreen = ({ navigation }: any) => {
           animationType: 'slide-in',
         });
 
-        // Update global login state
         setIsLoggedIn(true);
       } else {
-        throw new Error(
-          result.message || 'Registration failed. Please try again.',
-        );
+        throw new Error(result.message || 'Registration failed. Please try again.');
       }
     } catch (error) {
       console.error('Error during registration:', error);
-      // @ts-expect-error ignore
-      toast.show(error.message || 'An error occurred. Please try again.', {
+      const message =
+        error instanceof Error ? error.message : 'An error occurred. Please try again.';
+      toast.show(message, {
         type: 'danger',
         placement: 'top',
         duration: 3000,
         animationType: 'slide-in',
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -156,31 +76,41 @@ const SignupScreen = ({ navigation }: any) => {
         />
       </View>
 
-      <Text style={styles.title}>EasyFllyer</Text>
+      <Text style={styles.title}>EasyFlyer</Text>
 
-      {/* Input Field */}
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your Postal Code (6 alphanumeric characters)"
-        placeholderTextColor="#999"
-        value={postalCode}
-        onChangeText={(text) => {
-          const filteredText = text.replace(/[^A-Za-z0-9]/g, '').slice(0, 6);
-          setPostalCode(filteredText.toUpperCase());
-        }}
-        keyboardType="default"
-        keyboardAppearance="light"
-        autoCapitalize="characters"
-        autoCorrect={false}
-        maxLength={6}
+      {/* Postal Code Field */}
+      <Controller
+        control={control}
+        name="postalCode"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <TextInput
+            style={[styles.input, errors.postalCode && styles.inputError]}
+            placeholder="Enter your Postal Code (6 alphanumeric characters)"
+            placeholderTextColor="#999"
+            value={value}
+            onChangeText={(text) => {
+              onChange(text.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase());
+            }}
+            onBlur={onBlur}
+            keyboardType="default"
+            keyboardAppearance="light"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={6}
+            editable={!isSubmitting}
+          />
+        )}
       />
+      {errors.postalCode && (
+        <Text style={styles.errorText}>{errors.postalCode.message}</Text>
+      )}
 
       {/* Signup Button */}
       <TouchableOpacity
-        onPress={handleSignup}
-        style={[styles.signupButton, loading && styles.disabledButton]}
-        disabled={loading}>
-        {loading ? (
+        onPress={handleSubmit(onSubmit)}
+        style={[styles.signupButton, isSubmitting && styles.disabledButton]}
+        disabled={isSubmitting}>
+        {isSubmitting ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
           <Text style={styles.signupButtonText}>SIGN UP</Text>
@@ -250,9 +180,19 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingHorizontal: 20,
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 4,
     backgroundColor: '#fff',
     color: '#333',
+  },
+  inputError: {
+    borderColor: '#e53e3e',
+  },
+  errorText: {
+    width: '100%',
+    fontSize: 13,
+    color: '#e53e3e',
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   signupButton: {
     width: '100%',

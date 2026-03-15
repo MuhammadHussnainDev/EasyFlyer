@@ -4,6 +4,7 @@ import { ToastProvider } from 'react-native-toast-notifications';
 import { View, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getUserData } from './lib/storageUtils';
 import CurrentUserNavigation from './App/Navigations/role-nav';
 import { AuthProvider } from './lib/AuthContext';
@@ -11,6 +12,8 @@ import { PaperProvider } from 'react-native-paper';
 import { Provider } from 'react-redux';
 import store, { persistor } from './store/store';
 import { PersistGate } from 'redux-persist/integration/react';
+
+const queryClient = new QueryClient();
 
 function App(): React.JSX.Element {
   const [user, setuser] = useState(null);
@@ -28,10 +31,11 @@ function App(): React.JSX.Element {
       }
     };
     checkUser();
-  }, [user]);
+  }, []); // run once on mount
   return (
     <SafeAreaProvider>
-      <ToastProvider
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider
         placement="top"
         duration={5000}
         animationType="slide-in"
@@ -57,6 +61,7 @@ function App(): React.JSX.Element {
           </PersistGate>
         </Provider>
       </ToastProvider>
+      </QueryClientProvider>
     </SafeAreaProvider>
   );
 }
