@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext } from 'react';
 import {
   View,
   Text,
@@ -11,62 +11,42 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from 'react-native-toast-notifications';
 import { AuthContext } from '../../../lib/AuthContext';
 import { editPostalCode } from '../../../actions/postal-code/edit-code';
+import { postalCodeSchema, PostalCodeFormData } from '../../../utils/validationSchemas';
 
 const UpdatePostalCodeScreen = ({ navigation }: any) => {
-  const [postalCode, setPostalCode] = useState(''); // Local state for new postal code input
-  const [loading, setLoading] = useState(false); // Loading state
   const toast = useToast();
 
   const {
     updateUserData,
     postalCode: globalPostalCode,
     userData,
-  } = useContext(AuthContext); // Access global postal code and updater
+  } = useContext(AuthContext);
 
-  const validatePostalCode = (code: string): boolean => {
-    // Alphanumeric with exactly 6 characters
-    const postalCodeRegex = /^[A-Za-z0-9]{6}$/;
-    return postalCodeRegex.test(code);
-  };
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<PostalCodeFormData>({
+    resolver: zodResolver(postalCodeSchema),
+    defaultValues: { postalCode: '' },
+  });
 
-  const handleUpdatePostalCode = async () => {
-    if (!postalCode.trim()) {
-      toast.show('Postal Code is required!', {
-        type: 'danger',
-        placement: 'top',
-        duration: 3000,
-        animationType: 'slide-in',
-      });
-      return;
-    }
-
-    if (!validatePostalCode(postalCode.trim())) {
-      toast.show('Postal Code must be exactly 6 alphanumeric characters!', {
-        type: 'danger',
-        placement: 'top',
-        duration: 3000,
-        animationType: 'slide-in',
-      });
-      return;
-    }
-
+  const onSubmit = async (data: PostalCodeFormData) => {
     try {
-      setLoading(true);
-
-      // Call the editPostalCode action
       const result = await editPostalCode(
         globalPostalCode,
-        postalCode,
+        data.postalCode,
         userData.userId,
-      ); // Replace with the actual userId
+      );
 
       if (result.success) {
         const { oldPostalCode, newPostalCode, userId, fcmToken } = result;
 
-        // Update the global postal code in the context
         updateUserData({ postalCode: newPostalCode, userId, fcmToken });
 
         toast.show(
@@ -79,7 +59,6 @@ const UpdatePostalCodeScreen = ({ navigation }: any) => {
           },
         );
 
-        // Navigate back to the previous screen
         navigation.goBack();
       } else {
         toast.show(result.message || 'Failed to update postal code.', {
@@ -97,10 +76,9 @@ const UpdatePostalCodeScreen = ({ navigation }: any) => {
         duration: 3000,
         animationType: 'slide-in',
       });
-    } finally {
-      setLoading(false);
     }
   };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       <KeyboardAvoidingView
@@ -122,22 +100,31 @@ const UpdatePostalCodeScreen = ({ navigation }: any) => {
         <Text style={styles.title}>Update Postal Code</Text>
 
         {/* Input Field */}
-        <TextInput
-          style={styles.input}
-          placeholder={'Enter your New Postal Code (6 alphanumeric characters)'}
-          placeholderTextColor="#888"
-          value={postalCode}
-          onChangeText={(text) => {
-            // Limit to 6 characters and only allow alphanumeric
-            const filteredText = text.replace(/[^A-Za-z0-9]/g, '').slice(0, 6);
-            setPostalCode(filteredText.toUpperCase());
-          }}
-          keyboardType="default"
-          autoCapitalize="characters"
-          autoCorrect={false}
-          maxLength={6}
-          accessibilityLabel="Postal Code Input"
+        <Controller
+          control={control}
+          name="postalCode"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <TextInput
+              style={[styles.input, errors.postalCode && styles.inputError]}
+              placeholder="Enter your New Postal Code (6 alphanumeric characters)"
+              placeholderTextColor="#888"
+              value={value}
+              onChangeText={(text) => {
+                onChange(text.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase());
+              }}
+              onBlur={onBlur}
+              keyboardType="default"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={6}
+              accessibilityLabel="Postal Code Input"
+              editable={!isSubmitting}
+            />
+          )}
         />
+        {errors.postalCode && (
+          <Text style={styles.errorText}>{errors.postalCode.message}</Text>
+        )}
 
         {/* Current Postal Code Display */}
         <Text style={styles.currentPostalCode}>
@@ -146,10 +133,10 @@ const UpdatePostalCodeScreen = ({ navigation }: any) => {
 
         {/* Update Button */}
         <TouchableOpacity
-          onPress={handleUpdatePostalCode}
-          style={[styles.updateButton, loading && styles.disabledButton]}
-          disabled={loading}>
-          {loading ? (
+          onPress={handleSubmit(onSubmit)}
+          style={[styles.updateButton, isSubmitting && styles.disabledButton]}
+          disabled={isSubmitting}>
+          {isSubmitting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <Text style={styles.updateButtonText}>Update</Text>
@@ -229,9 +216,19 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingHorizontal: 20,
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 4,
     backgroundColor: '#FFFFFF',
     color: '#333',
+  },
+  inputError: {
+    borderColor: '#e53e3e',
+  },
+  errorText: {
+    width: '100%',
+    fontSize: 13,
+    color: '#e53e3e',
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   currentPostalCode: {
     fontSize: 14,

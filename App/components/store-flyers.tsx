@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,19 +10,11 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { useDispatch, useSelector } from 'react-redux';
+import { useQuery } from '@tanstack/react-query';
 import { fetchStoreFlyersWithStoreImage } from '../../actions/store-flyers/fetch-store-flyers';
 import { toggleStoreFlyer } from '../../store/slices/storeSlice';
 import { RootState } from '../../store/store';
-import { filterExpiredContent } from '../../utils/dateUtils';
-
-export const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date);
-};
+import { filterExpiredContent, formatDate } from '../../utils/dateUtils';
 
 interface StoreFlyer {
   id: string;
@@ -37,57 +29,35 @@ interface StoreFlyer {
 
 const StoreFlyersComponent = ({ userData, navigation }: any) => {
   const dispatch = useDispatch();
-  const [storeFlyers, setStoreFlyers] = useState<StoreFlyer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
 
   const favorites = useSelector((state: RootState) => state.storeFlyers || []);
   const selectedCategories = useSelector(
     (state: RootState) => state.categories,
   );
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  const loadFlyers = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const {
+    data: storeFlyers = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<StoreFlyer[]>({
+    queryKey: ['storeFlyers', userData?.postalCode, selectedCategories],
+    queryFn: async () => {
       const flyers = await fetchStoreFlyersWithStoreImage(
         userData?.postalCode,
         selectedCategories,
       );
-      if (!isMountedRef.current) {
-        return;
-      }
-      // Filter out expired content
-      const validFlyers = filterExpiredContent(flyers, 'validTo') as StoreFlyer[];
-      setStoreFlyers(validFlyers);
-    } catch (err) {
-      if (!isMountedRef.current) {
-        return;
-      }
-      console.error('Error fetching store flyers:', err);
-      setError('Failed to load flyers. Please try again.');
-    } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [userData?.postalCode, selectedCategories]);
+      return filterExpiredContent(flyers, 'validTo') as StoreFlyer[];
+    },
+    enabled: !!userData?.postalCode,
+  });
 
-  useEffect(() => {
-    loadFlyers();
-  }, [loadFlyers]);
-
-  const toggleFavorite = (flyer: StoreFlyer) => {
-    dispatch(toggleStoreFlyer(flyer));
-  };
+  const toggleFavorite = useCallback(
+    (flyer: StoreFlyer) => {
+      dispatch(toggleStoreFlyer(flyer));
+    },
+    [dispatch],
+  );
 
   const navigateToFlyerScreen = (item: StoreFlyer) => {
     navigation.navigate('Flyer', { deal: item });
@@ -144,7 +114,7 @@ const StoreFlyersComponent = ({ userData, navigation }: any) => {
     );
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#4C6EF5" />
@@ -152,11 +122,11 @@ const StoreFlyersComponent = ({ userData, navigation }: any) => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity onPress={loadFlyers} style={styles.retryButton}>
+        <Text style={styles.errorText}>Failed to load flyers. Please try again.</Text>
+        <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>

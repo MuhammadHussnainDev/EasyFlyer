@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   FlatList,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import { useQuery } from '@tanstack/react-query';
 import FlyerItem from '../../utils/FlyerItem';
 import {
   fetchFlyersByPostalCodeWithBrandImage,
@@ -20,70 +21,39 @@ import { filterExpiredContent } from '../../utils/dateUtils';
 const FlyersComponent = ({ userData, navigation }: any) => {
   const dispatch = useDispatch();
 
-  // Select brandFlyers from Redux state
   const brandFlyers = useSelector((state: RootState) => state.brandFlyers);
   const selectedCategories = useSelector(
     (state: RootState) => state.categories,
   );
 
-  const [flyers, setFlyers] = useState<Flyer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Fetch flyers from Firestore
-  const fetchFlyers = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const {
+    data: flyers = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<Flyer[]>({
+    queryKey: ['flyers', userData?.postalCode, selectedCategories],
+    queryFn: async () => {
       const allFlyers = await fetchFlyersByPostalCodeWithBrandImage(
         userData?.postalCode,
         selectedCategories,
       );
-      if (!isMountedRef.current) {
-        return;
-      }
-      // Filter out expired content
-      const validFlyers = filterExpiredContent(allFlyers, 'validTo');
-      setFlyers(validFlyers);
-    } catch (err) {
-      if (!isMountedRef.current) {
-        return;
-      }
-      console.error('Error fetching flyers:', err);
-      setError('Failed to load flyers. Please try again.');
-    } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [userData?.postalCode, selectedCategories]);
+      return filterExpiredContent(allFlyers, 'validTo') as Flyer[];
+    },
+    enabled: !!userData?.postalCode,
+  });
 
-  useEffect(() => {
-    fetchFlyers();
-  }, [fetchFlyers]);
-
-  // Toggle favorite flyer using Redux
   const toggleFavorite = useCallback(
     (flyer: Flyer) => {
       if (!flyer || !flyer.id || !flyer.title) {
         console.error('Invalid flyer:', flyer);
         return;
       }
-      const flyerData = { id: flyer.id, name: flyer.title };
-      dispatch(toggleBrandFlyer(flyerData));
+      dispatch(toggleBrandFlyer({ id: flyer.id, name: flyer.title }));
     },
     [dispatch],
   );
 
-  // Render flyer item
   const renderFlyer = ({ item }: { item: Flyer }) => {
     const isFavorite = brandFlyers.some((flyer: any) => flyer.id === item.id);
 
@@ -97,7 +67,7 @@ const FlyersComponent = ({ userData, navigation }: any) => {
     );
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#4C6EF5" />
@@ -105,11 +75,11 @@ const FlyersComponent = ({ userData, navigation }: any) => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity onPress={fetchFlyers} style={styles.retryButton}>
+        <Text style={styles.errorText}>Failed to load flyers. Please try again.</Text>
+        <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>

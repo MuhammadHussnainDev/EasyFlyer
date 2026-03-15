@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchEntitiesByPostalCode, Entity } from '../../../actions/brand/fetch-brands';
 import { toggleFavorite } from '../../../store/slices/favoritesSlice';
@@ -19,36 +20,26 @@ import { RootState } from '../../../store/store';
 
 const HomeScreen = ({ navigation }: any) => {
   const { userData } = useContext(AuthContext);
-  const [stores, setStores] = useState<Entity[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const dispatch = useDispatch();
   const favorites = useSelector((state: RootState) => state.favorites);
 
-  const loadStores = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
+  const {
+    data: stores = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<Entity[]>({
+    queryKey: ['entities', userData?.postalCode],
+    queryFn: async () => {
       const result = await fetchEntitiesByPostalCode(userData?.postalCode);
-
-      if (result.success) {
-        setStores(result.entities || []);
-      } else {
-        setError(result.message || 'Failed to load brands.');
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to load brands.');
       }
-    } catch (err) {
-      console.error('Error fetching stores:', err);
-      setError('Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [userData?.postalCode]);
-
-  useEffect(() => {
-    loadStores();
-  }, [loadStores]);
+      return result.entities ?? [];
+    },
+    enabled: !!userData?.postalCode,
+  });
 
   const handleToggleFavorite = useCallback(
     (brand: Entity) => {
@@ -88,16 +79,16 @@ const HomeScreen = ({ navigation }: any) => {
   );
 
   const renderContent = () => {
-    if (loading) {
+    if (isLoading) {
       return <ActivityIndicator size="large" color="#4C6EF5" />;
     }
 
-    if (error) {
+    if (isError) {
       return (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorText}>Something went wrong. Please try again.</Text>
           <TouchableOpacity
-            onPress={loadStores}
+            onPress={() => refetch()}
             style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>

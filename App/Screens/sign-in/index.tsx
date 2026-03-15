@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -9,62 +9,25 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from 'react-native-toast-notifications';
+import { signInSchema, SignInFormData } from '../../../utils/validationSchemas';
 
 const SignInScreen = ({ navigation }: any) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const toast = useToast();
 
-  const validateEmail = (value: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(value.trim());
-  };
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SignInFormData>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: { email: '', password: '' },
+  });
 
-  const handleLogin = async () => {
-    if (!email.trim()) {
-      toast.show('Email is required.', {
-        type: 'danger',
-        placement: 'top',
-        duration: 3000,
-        animationType: 'slide-in',
-      });
-      return;
-    }
-
-    if (!validateEmail(email)) {
-      toast.show('Please enter a valid email address.', {
-        type: 'danger',
-        placement: 'top',
-        duration: 3000,
-        animationType: 'slide-in',
-      });
-      return;
-    }
-
-    if (!password.trim()) {
-      toast.show('Password is required.', {
-        type: 'danger',
-        placement: 'top',
-        duration: 3000,
-        animationType: 'slide-in',
-      });
-      return;
-    }
-
-    if (password.length < 6) {
-      toast.show('Password must be at least 6 characters.', {
-        type: 'danger',
-        placement: 'top',
-        duration: 3000,
-        animationType: 'slide-in',
-      });
-      return;
-    }
-
+  const onSubmit = async (_data: SignInFormData) => {
     try {
-      setLoading(true);
       // TODO: Connect to authentication backend (email/password sign-in)
       navigation.navigate('home');
     } catch (error: unknown) {
@@ -76,8 +39,6 @@ const SignInScreen = ({ navigation }: any) => {
         duration: 3000,
         animationType: 'slide-in',
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -95,36 +56,58 @@ const SignInScreen = ({ navigation }: any) => {
       <Text style={styles.title}>EasyFlyer</Text>
       <Text style={styles.subtitle}>Your Local Deals Companion</Text>
 
-      {/* Input Fields */}
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#999"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoCorrect={false}
-        value={email}
-        onChangeText={setEmail}
-        editable={!loading}
+      {/* Email Field */}
+      <Controller
+        control={control}
+        name="email"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <TextInput
+            style={[styles.input, errors.email && styles.inputError]}
+            placeholder="Email"
+            placeholderTextColor="#999"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            editable={!isSubmitting}
+          />
+        )}
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#999"
-        secureTextEntry
-        autoCapitalize="none"
-        autoCorrect={false}
-        value={password}
-        onChangeText={setPassword}
-        editable={!loading}
+      {errors.email && (
+        <Text style={styles.errorText}>{errors.email.message}</Text>
+      )}
+
+      {/* Password Field */}
+      <Controller
+        control={control}
+        name="password"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <TextInput
+            style={[styles.input, errors.password && styles.inputError]}
+            placeholder="Password"
+            placeholderTextColor="#999"
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            editable={!isSubmitting}
+          />
+        )}
       />
+      {errors.password && (
+        <Text style={styles.errorText}>{errors.password.message}</Text>
+      )}
 
       {/* Login Button */}
       <TouchableOpacity
-        onPress={handleLogin}
-        style={[styles.loginButton, loading && styles.disabledButton]}
-        disabled={loading}>
-        {loading ? (
+        onPress={handleSubmit(onSubmit)}
+        style={[styles.loginButton, isSubmitting && styles.disabledButton]}
+        disabled={isSubmitting}>
+        {isSubmitting ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
           <Text style={styles.loginButtonText}>LOGIN</Text>
@@ -200,9 +183,19 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingHorizontal: 20,
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 4,
     backgroundColor: '#F8F9FA',
     color: '#333',
+  },
+  inputError: {
+    borderColor: '#e53e3e',
+  },
+  errorText: {
+    width: '100%',
+    fontSize: 13,
+    color: '#e53e3e',
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   loginButton: {
     width: '100%',

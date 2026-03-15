@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import {useDispatch, useSelector} from 'react-redux';
-import {formatDate} from './store-flyers';
+import {formatDate} from '../../utils/dateUtils';
 import {toggleEvents} from '../../store/slices/eventSlice';
 import {RootState} from '../../store/store';
 
