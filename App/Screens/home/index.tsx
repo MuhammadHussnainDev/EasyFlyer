@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,72 +12,108 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchEntitiesByPostalCode } from '../../../actions/brand/fetch-brands';
+import { fetchEntitiesByPostalCode, Entity } from '../../../actions/brand/fetch-brands';
 import { toggleFavorite } from '../../../store/slices/favoritesSlice';
 import { AuthContext } from '../../../lib/AuthContext';
+import { RootState } from '../../../store/store';
 
 const HomeScreen = ({ navigation }: any) => {
   const { userData } = useContext(AuthContext);
-  const [stores, setStores] = useState([]);
+  const [stores, setStores] = useState<Entity[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const dispatch = useDispatch();
-  const favorites = useSelector((state: any) => state.favorites);
+  const favorites = useSelector((state: RootState) => state.favorites);
 
-  // const data = await fetchAllBrands(); // Fetch all brands from API
-  useEffect(() => {
-    const loadStores = async () => {
-      try {
-        setLoading(true);
+  const loadStores = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        // Fetch brands based on postal code
-        const result = await fetchEntitiesByPostalCode(userData?.postalCode);
+      const result = await fetchEntitiesByPostalCode(userData?.postalCode);
 
-        if (result.success) {
-          // @ts-expect-error ignore
-          setStores(result.entities || []); // Set the brands if available
-        } else {
-          console.error('Error fetching brands:', result.message);
-        }
-      } catch (error) {
-        console.error('Error fetching stores:', error);
-      } finally {
-        setLoading(false);
+      if (result.success) {
+        setStores(result.entities || []);
+      } else {
+        setError(result.message || 'Failed to load brands.');
       }
-    };
-
-    loadStores();
+    } catch (err) {
+      console.error('Error fetching stores:', err);
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [userData?.postalCode]);
-  // @ts-expect-error ignore
-  const handleToggleFavorite = brand => {
-    dispatch(toggleFavorite(brand)); // Toggle favorite in Redux
-    // dispatch(toggleFavorite({favorite: brand, userId: userData?.userId})); // Toggle favorite in Redux
-  };
+
+  useEffect(() => {
+    loadStores();
+  }, [loadStores]);
+
+  const handleToggleFavorite = useCallback(
+    (brand: Entity) => {
+      dispatch(toggleFavorite(brand));
+    },
+    [dispatch],
+  );
 
   const filteredStores = stores.filter(store =>
-    // @ts-expect-error ignore
-    store.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    store.name?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
-  // @ts-expect-error ignore
-  const renderStoreItem = ({ item }) => {
-    // Debugging logic for `isFavorite`
-    // @ts-expect-error ignore
-    const isFavorite = favorites.some(fav => fav.id === item.id);
-    // console.log(`Is ${item.name} favorite?`, isFavorite);
+
+  const renderStoreItem = useCallback(
+    ({ item }: { item: Entity }) => {
+      const isFavorite = (favorites as Entity[]).some(fav => fav.id === item.id);
+
+      return (
+        <Pressable
+          style={[styles.storeItem, isFavorite && styles.favoriteItem]}
+          onPress={() => handleToggleFavorite(item)}>
+          <Image
+            source={
+              item.image
+                ? { uri: item.image }
+                : require('../../../assets/appstore.png')
+            }
+            style={styles.storeIcon}
+            resizeMode="cover"
+          />
+          <Text style={styles.storeName} numberOfLines={1}>
+            {item.name}
+          </Text>
+        </Pressable>
+      );
+    },
+    [favorites, handleToggleFavorite],
+  );
+
+  const renderContent = () => {
+    if (loading) {
+      return <ActivityIndicator size="large" color="#4C6EF5" />;
+    }
+
+    if (error) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            onPress={loadStores}
+            style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
 
     return (
-      <Pressable
-        style={[styles.storeItem, isFavorite && styles.favoriteItem]}
-        onPress={() => handleToggleFavorite(item)}>
-        <Image
-          source={{ uri: item?.image || 'https://via.placeholder.com/100' }}
-          style={styles.storeIcon}
-          resizeMode="cover"
-        />
-        <Text style={styles.storeName} numberOfLines={1}>
-          {item.name}
-        </Text>
-      </Pressable>
+      <FlatList
+        data={filteredStores}
+        numColumns={2}
+        keyExtractor={item => item.id}
+        renderItem={renderStoreItem}
+        contentContainerStyle={styles.storeList}
+        removeClippedSubviews
+      />
     );
   };
 
@@ -93,17 +129,7 @@ const HomeScreen = ({ navigation }: any) => {
         onChangeText={setSearchQuery}
         placeholderTextColor={'#000'}
       />
-      {loading ? (
-        <ActivityIndicator size="large" color="#4C6EF5" />
-      ) : (
-        <FlatList
-          data={filteredStores}
-          numColumns={2}
-          keyExtractor={item => item.id}
-          renderItem={renderStoreItem}
-          contentContainerStyle={styles.storeList}
-        />
-      )}
+      {renderContent()}
       <View style={styles.footer}>
         <TouchableOpacity
           onPress={() => navigation.navigate('categories')}
@@ -188,6 +214,29 @@ const styles = StyleSheet.create({
   },
   nextButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   skipText: { color: '#4C6EF5', fontSize: 14, textAlign: 'center' },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#e53e3e',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#4C6EF5',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 export default HomeScreen;

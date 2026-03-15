@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,81 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useToast } from 'react-native-toast-notifications';
 
 const SignInScreen = ({ navigation }: any) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const toast = useToast();
+
+  const validateEmail = (value: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(value.trim());
+  };
+
+  const handleLogin = async () => {
+    if (!email.trim()) {
+      toast.show('Email is required.', {
+        type: 'danger',
+        placement: 'top',
+        duration: 3000,
+        animationType: 'slide-in',
+      });
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      toast.show('Please enter a valid email address.', {
+        type: 'danger',
+        placement: 'top',
+        duration: 3000,
+        animationType: 'slide-in',
+      });
+      return;
+    }
+
+    if (!password.trim()) {
+      toast.show('Password is required.', {
+        type: 'danger',
+        placement: 'top',
+        duration: 3000,
+        animationType: 'slide-in',
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.show('Password must be at least 6 characters.', {
+        type: 'danger',
+        placement: 'top',
+        duration: 3000,
+        animationType: 'slide-in',
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // TODO: Connect to authentication backend (email/password sign-in)
+      navigation.navigate('home');
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'An error occurred. Please try again.';
+      toast.show(message, {
+        type: 'danger',
+        placement: 'top',
+        duration: 3000,
+        animationType: 'slide-in',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       {/* Logo Icon */}
@@ -32,6 +103,9 @@ const SignInScreen = ({ navigation }: any) => {
         keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}
+        value={email}
+        onChangeText={setEmail}
+        editable={!loading}
       />
       <TextInput
         style={styles.input}
@@ -40,13 +114,21 @@ const SignInScreen = ({ navigation }: any) => {
         secureTextEntry
         autoCapitalize="none"
         autoCorrect={false}
+        value={password}
+        onChangeText={setPassword}
+        editable={!loading}
       />
 
       {/* Login Button */}
       <TouchableOpacity
-        onPress={() => navigation.navigate('home')}
-        style={styles.loginButton}>
-        <Text style={styles.loginButtonText}>LOGIN</Text>
+        onPress={handleLogin}
+        style={[styles.loginButton, loading && styles.disabledButton]}
+        disabled={loading}>
+        {loading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={styles.loginButtonText}>LOGIN</Text>
+        )}
       </TouchableOpacity>
 
       {/* Legal Links */}
@@ -141,6 +223,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  disabledButton: {
+    backgroundColor: '#A0AEC0',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   legalLinks: {
     flexDirection: 'row',

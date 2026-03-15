@@ -28,7 +28,7 @@ function App(): React.JSX.Element {
       }
     };
     checkUser();
-  }, [user]);
+  }, []); // run once on mount
   return (
     <SafeAreaProvider>
       <ToastProvider

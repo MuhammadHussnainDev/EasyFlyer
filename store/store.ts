@@ -1,4 +1,4 @@
-import { configureStore } from '@reduxjs/toolkit';
+import { configureStore, AnyAction } from '@reduxjs/toolkit';
 import { persistReducer, persistStore } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { combineReducers } from 'redux';
@@ -23,8 +23,19 @@ const rootReducer = combineReducers({
   categories: toggleCategory,
 });
 
+// Wrap the root reducer to handle a global RESET_STATE action (dispatched on logout)
+const resettableRootReducer = (
+  state: ReturnType<typeof rootReducer> | undefined,
+  action: AnyAction,
+) => {
+  if (action.type === 'RESET_STATE') {
+    return rootReducer(undefined, action);
+  }
+  return rootReducer(state, action);
+};
+
 // Create persisted reducer
-const persistedReducer = persistReducer(persistConfig, rootReducer);
+const persistedReducer = persistReducer(persistConfig, resettableRootReducer);
 
 // Create the store
 const store = configureStore({

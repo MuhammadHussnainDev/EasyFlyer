@@ -6,7 +6,6 @@ const brandFlyersSlice = createSlice({
   reducers: {
     toggleBrandFlyer: (state, action) => {
       const flyer = action.payload;
-      console.log('🚀 Before Update State:', JSON.stringify(state));
       const index = state.findIndex(item => item.id === flyer.id);
 
       if (index !== -1) {
@@ -16,7 +15,6 @@ const brandFlyersSlice = createSlice({
         // Add the flyer if it doesn't exist
         state.push(flyer);
       }
-      console.log('🚀 After Update State:', JSON.stringify(state));
     },
   },
 });

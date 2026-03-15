@@ -20,60 +20,6 @@ const SignupScreen = ({ navigation }: any) => {
   const toast = useToast();
   const { setIsLoggedIn, updateUserData } = useContext(AuthContext); // Access the setIsLoggedIn function
 
-  // const handleSignup = async () => {
-  //   if (!postalCode.trim()) {
-  //     toast.show('Postal Code is required!', {
-  //       type: 'danger',
-  //       placement: 'top',
-  //       duration: 3000,
-  //       animationType: 'slide-in',
-  //     });
-  //     return;
-  //   }
-
-  //   try {
-  //     setLoading(true);
-
-  //     // Call createPostalCodeUser server action
-  //     const result = await createPostalCodeUser(postalCode);
-
-  //     if (result.success) {
-  //       const userData = {postalCode, userId: result.userId}; // Save postalCode and userId
-  //       await saveUserData('userData', userData);
-
-  //       // Update AuthContext with the new user data
-  //       updateUserData(userData);
-
-  //       toast.show('User registered successfully!', {
-  //         type: 'success',
-  //         placement: 'top',
-  //         duration: 3000,
-  //         animationType: 'slide-in',
-  //       });
-
-  //       // Update the global login state
-  //       setIsLoggedIn(true);
-  //     } else {
-  //       toast.show(result.message || 'Registration failed. Please try again.', {
-  //         type: 'danger',
-  //         placement: 'top',
-  //         duration: 3000,
-  //         animationType: 'slide-in',
-  //       });
-  //     }
-  //   } catch (error) {
-  //     toast.show('An error occurred. Please try again.', {
-  //       type: 'danger',
-  //       placement: 'top',
-  //       duration: 3000,
-  //       animationType: 'slide-in',
-  //     });
-  //     console.error('Error during registration:', error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
   const validatePostalCode = (code: string): boolean => {
     const postalCodeRegex = /^[A-Za-z0-9]{6}$/;
     return postalCodeRegex.test(code);
@@ -133,8 +79,9 @@ const SignupScreen = ({ navigation }: any) => {
       }
     } catch (error) {
       console.error('Error during registration:', error);
-      // @ts-expect-error ignore
-      toast.show(error.message || 'An error occurred. Please try again.', {
+      const message =
+        error instanceof Error ? error.message : 'An error occurred. Please try again.';
+      toast.show(message, {
         type: 'danger',
         placement: 'top',
         duration: 3000,
@@ -156,7 +103,7 @@ const SignupScreen = ({ navigation }: any) => {
         />
       </View>
 
-      <Text style={styles.title}>EasyFllyer</Text>
+      <Text style={styles.title}>EasyFlyer</Text>
 
       {/* Input Field */}
       <TextInput

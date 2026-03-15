@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   FlatList,
   Text,
   ActivityIndicator,
   StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import FlyerItem from '../../utils/FlyerItem';
@@ -16,7 +17,7 @@ import { toggleBrandFlyer } from '../../store/slices/brandSlice';
 import { RootState } from '../../store/store';
 import { filterExpiredContent } from '../../utils/dateUtils';
 
-const FlyersComponent = ({ userData, mediaLink, navigation }: any) => {
+const FlyersComponent = ({ userData, navigation }: any) => {
   const dispatch = useDispatch();
 
   // Select brandFlyers from Redux state
@@ -24,27 +25,44 @@ const FlyersComponent = ({ userData, mediaLink, navigation }: any) => {
   const selectedCategories = useSelector(
     (state: RootState) => state.categories,
   );
-  console.log('🚀 ~ FlyersComponent ~ selectedCategories:', selectedCategories);
 
   const [flyers, setFlyers] = useState<Flyer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Fetch flyers from Firestore
   const fetchFlyers = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const allFlyers = await fetchFlyersByPostalCodeWithBrandImage(
         userData?.postalCode,
         selectedCategories,
       );
+      if (!isMountedRef.current) {
+        return;
+      }
       // Filter out expired content
       const validFlyers = filterExpiredContent(allFlyers, 'validTo');
-      console.log('Fetched Flyers:', allFlyers.length, 'Valid Flyers:', validFlyers.length);
       setFlyers(validFlyers);
-    } catch (error) {
-      console.error('Error fetching flyers:', error);
+    } catch (err) {
+      if (!isMountedRef.current) {
+        return;
+      }
+      console.error('Error fetching flyers:', err);
+      setError('Failed to load flyers. Please try again.');
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [userData?.postalCode, selectedCategories]);
 
@@ -60,7 +78,6 @@ const FlyersComponent = ({ userData, mediaLink, navigation }: any) => {
         return;
       }
       const flyerData = { id: flyer.id, name: flyer.title };
-      console.log('🚀 Toggling Favorite Flyer:', flyerData);
       dispatch(toggleBrandFlyer(flyerData));
     },
     [dispatch],
@@ -69,13 +86,10 @@ const FlyersComponent = ({ userData, mediaLink, navigation }: any) => {
   // Render flyer item
   const renderFlyer = ({ item }: { item: Flyer }) => {
     const isFavorite = brandFlyers.some((flyer: any) => flyer.id === item.id);
-    // console.log(`Flyer ${item.id} isFavorite:`, isFavorite);
 
     return (
       <FlyerItem
         item={item}
-        // @ts-expect-error ignore
-        mediaLink={mediaLink}
         navigation={navigation}
         isFavorite={isFavorite}
         toggleFavorite={() => toggleFavorite(item)}
@@ -87,6 +101,17 @@ const FlyersComponent = ({ userData, mediaLink, navigation }: any) => {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#4C6EF5" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity onPress={fetchFlyers} style={styles.retryButton}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -107,14 +132,10 @@ const FlyersComponent = ({ userData, mediaLink, navigation }: any) => {
       keyExtractor={item => item.id}
       renderItem={renderFlyer}
       contentContainerStyle={styles.flyerList}
-      ListEmptyComponent={
-        flyers.length === 0 ? (
-          <Text style={styles.emptyText}>No flyers found</Text>
-        ) : null
-      }
       initialNumToRender={10}
       maxToRenderPerBatch={10}
       windowSize={5}
+      removeClippedSubviews
     />
   );
 };
@@ -133,6 +154,29 @@ const styles = StyleSheet.create({
   noFlyersText: {
     fontSize: 16,
     color: '#777',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#e53e3e',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#4C6EF5',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   flyerList: {
     paddingHorizontal: 10,

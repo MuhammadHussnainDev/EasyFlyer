@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { toggleStoreFlyer } from '../../store/slices/storeSlice';
 import { RootState } from '../../store/store';
 import { filterExpiredContent } from '../../utils/dateUtils';
 
-export const formatDate = (dateString: any) => {
+export const formatDate = (dateString: string) => {
   const date = new Date(dateString);
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -24,10 +24,23 @@ export const formatDate = (dateString: any) => {
   }).format(date);
 };
 
+interface StoreFlyer {
+  id: string;
+  image?: string | null;
+  storeImage?: string | null;
+  storeName?: string;
+  title?: string;
+  validTo?: string;
+  storeQrCode?: string;
+  brandQrCode?: string;
+}
+
 const StoreFlyersComponent = ({ userData, navigation }: any) => {
   const dispatch = useDispatch();
-  const [storeFlyers, setStoreFlyers] = useState([]);
+  const [storeFlyers, setStoreFlyers] = useState<StoreFlyer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
 
   const favorites = useSelector((state: RootState) => state.storeFlyers || []);
   const selectedCategories = useSelector(
@@ -35,37 +48,55 @@ const StoreFlyersComponent = ({ userData, navigation }: any) => {
   );
 
   useEffect(() => {
-    const fetchFlyers = async () => {
-      try {
-        const flyers = await fetchStoreFlyersWithStoreImage(
-          userData?.postalCode,
-          selectedCategories,
-        );
-        // Filter out expired content
-        const validFlyers = filterExpiredContent(flyers, 'validTo');
-        console.log('Fetched Store Flyers:', flyers.length, 'Valid Store Flyers:', validFlyers.length);
-        // @ts-expect-error ignore
-        setStoreFlyers(validFlyers);
-      } catch (error) {
-        console.error('Error fetching store flyers:', error);
-      } finally {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const loadFlyers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const flyers = await fetchStoreFlyersWithStoreImage(
+        userData?.postalCode,
+        selectedCategories,
+      );
+      if (!isMountedRef.current) {
+        return;
+      }
+      // Filter out expired content
+      const validFlyers = filterExpiredContent(flyers, 'validTo') as StoreFlyer[];
+      setStoreFlyers(validFlyers);
+    } catch (err) {
+      if (!isMountedRef.current) {
+        return;
+      }
+      console.error('Error fetching store flyers:', err);
+      setError('Failed to load flyers. Please try again.');
+    } finally {
+      if (isMountedRef.current) {
         setLoading(false);
       }
-    };
-
-    fetchFlyers();
+    }
   }, [userData?.postalCode, selectedCategories]);
 
-  const toggleFavorite = (flyer: any) => {
+  useEffect(() => {
+    loadFlyers();
+  }, [loadFlyers]);
+
+  const toggleFavorite = (flyer: StoreFlyer) => {
     dispatch(toggleStoreFlyer(flyer));
   };
 
-  const navigateToFlyerScreen = (item: any) => {
+  const navigateToFlyerScreen = (item: StoreFlyer) => {
     navigation.navigate('Flyer', { deal: item });
   };
 
-  const renderFlyer = ({ item }: any) => {
-    const isFavorite = favorites.some((flyer: any) => flyer.id === item.id);
+  const renderFlyer = ({ item }: { item: StoreFlyer }) => {
+    const isFavorite = (favorites as StoreFlyer[]).some(
+      (flyer: StoreFlyer) => flyer.id === item.id,
+    );
 
     return (
       <View style={styles.flyerCard}>
@@ -80,20 +111,32 @@ const StoreFlyersComponent = ({ userData, navigation }: any) => {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigateToFlyerScreen(item)}>
-          <Image
-            source={{ uri: item.image }}
-            style={styles.flyerImage}
-            resizeMode="cover"
-          />
+          {item.image ? (
+            <Image
+              source={{ uri: item.image }}
+              style={styles.flyerImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.flyerImage, styles.imagePlaceholder]} />
+          )}
           <View style={styles.flyerInfo}>
-            <Image source={{ uri: item.storeImage }} style={styles.storeImage} />
+            {item.storeImage ? (
+              <Image
+                source={{ uri: item.storeImage }}
+                style={styles.storeImage}
+              />
+            ) : (
+              <View style={[styles.storeImage, styles.imagePlaceholder]} />
+            )}
             <View style={styles.textInfo}>
               <Text style={styles.storeName}>{item.storeName}</Text>
               <Text style={styles.flyerTitle}>{item.title}</Text>
-              <Text style={styles.flyerValidity}>
-                Until : {formatDate(item.validTo)}
-              </Text>
-              {/* Valid From: {formatDate(item.validFrom)}  */}
+              {item.validTo ? (
+                <Text style={styles.flyerValidity}>
+                  Until : {formatDate(item.validTo)}
+                </Text>
+              ) : null}
             </View>
           </View>
         </TouchableOpacity>
@@ -105,6 +148,17 @@ const StoreFlyersComponent = ({ userData, navigation }: any) => {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#4C6EF5" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity onPress={loadFlyers} style={styles.retryButton}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -122,10 +176,10 @@ const StoreFlyersComponent = ({ userData, navigation }: any) => {
   return (
     <FlatList
       data={storeFlyers}
-      // @ts-expect-error ignore
       keyExtractor={item => item.id}
       renderItem={renderFlyer}
       contentContainerStyle={styles.flyerList}
+      removeClippedSubviews
     />
   );
 };
@@ -147,6 +201,32 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#888',
     textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#e53e3e',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#4C6EF5',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  imagePlaceholder: {
+    backgroundColor: '#ddd',
   },
   flyerList: {
     padding: 10,
